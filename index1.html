@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="km">
+<head>
+  <meta charset="utf-8" />
+  <title>Game ខ្លាខ្លុក (kla klok) — Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: "Noto Sans Khmer", Arial, sans-serif; background:#f7f3f8; color:#222; padding:20px; }
+    .container { max-width:900px; margin:0 auto; background:#fff; border-radius:10px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,0.08); }
+    h1 { margin:0 0 14px 0; font-size:20px; }
+    .top-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap; }
+    .balance { background:#111827; color:#fff; padding:10px 14px; border-radius:8px; font-weight:600; }
+    .symbols { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin:12px 0 18px; }
+    .symbol { background:#fafafa; border:2px solid transparent; border-radius:8px; padding:8px; text-align:center; cursor:pointer; transition:all .12s; }
+    .symbol.selected { border-color:#2563eb; transform:translateY(-4px); box-shadow:0 6px 18px rgba(37,99,235,0.12); }
+    .symbol img { width:100%; height:90px; object-fit:contain; display:block; margin:0 auto 6px; }
+    .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    label { font-size:14px; }
+    input[type="number"] { width:120px; padding:8px; border-radius:8px; border:1px solid #ddd; }
+    button { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:600; }
+    .play { background:#0891b2; color:white; }
+    .reset { background:#ef4444; color:white; }
+    .draw-area { margin-top:18px; display:flex; gap:12px; align-items:center; }
+    .draw-slot { width:110px; height:110px; background:#111827; color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+    .message { margin-top:12px; font-weight:600; min-height:22px; }
+    .footer { margin-top:18px; font-size:13px; color:#555; }
+    @media (max-width:700px){
+      .symbols { grid-template-columns:repeat(3,1fr); }
+      .draw-slot { width:80px; height:80px; font-size:15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Project: ខ្លាឃ្លោក (game kla klok) — កែសម្រួល Demo</h1>
+    <div class="top-row">
+      <div>
+        <div style="font-size:14px; color:#666">ជ្រើសរើសរូបតំណាងដែលអ្នកចង់ភ្នាល់</div>
+        <div style="font-size:12px; color:#999">ចុចលើរូបដើម្បីជ្រើស</div>
+      </div>
+      <div class="balance" id="balance">សមតុល្យ: 1,003</div>
+    </div>
+
+    <div class="symbols" id="symbols"></div>
+
+    <div class="controls">
+      <label>ចំនួនភ្នាល់ (Bet):</label>
+      <input id="betAmount" type="number" value="10" min="1" />
+      <button class="play" id="playBtn">លេង</button>
+      <button class="reset" id="resetBtn">កំណត់ឡើងវិញ</button>
+      <div style="margin-left:auto; color:#555">ចំនួនឈ្នះ/បរាជ័យ បង្ហាញនៅខាងក្រោម</div>
+    </div>
+
+    <div class="draw-area" style="margin-top:16px;">
+      <div class="draw-slot" id="draw1">?</div>
+      <div class="draw-slot" id="draw2">?</div>
+      <div class="draw-slot" id="draw3">?</div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <div class="footer">
+      <div>ច្បាប់ល្បែង (simple rules): បង្រ្កាបអោយមាន 3 draw. ប្រសិនបើរូបដែលអ្នកភ្នាល់និយមបង្ហាញក្នុង draws មួយ ឬច្រើន → អ្នកឈ្នះ។ ការបង់ប្រាក់ = bet × (1 + matches). (ឧ. 1 match = 2×, 2 matches = 3×, 3 matches = 4×)</div>
+    </div>
+  </div>
+
+<script>
+ 
+  const symbolsData = [
+    { id: 'Tiger', name: 'ខ្លា', img: 'image/Screenshot 2025-11-27 130904.png'  },
+    { id: 'Fake fruit', name: 'ឃ្លោក', img: 'image/Screenshot 2025-11-27 130908.png' },
+    { id: 'Rooster', name: 'មាន់', img: 'image/Screenshot 2025-11-27 130913.png' },
+    { id: 'Lobster', name: 'បង្កង', img: 'image/Screenshot 2025-11-27 130918.png' },
+    { id: 'Crab', name: 'ក្តាម', img: 'image/Screenshot 2025-11-27 130923.png' },
+    { id: 'Fish', name: 'ត្រី', img: 'image/Screenshot 2025-11-27 130927.png' }
+  ];
+ 
+
+ 
+  let balance = 1003;
+  let selectedSymbolId = null;
+
+ 
+  function formatNumber(n){
+    return n.toLocaleString('en-US');
+  }
+
+  const symbolsEl = document.getElementById('symbols');
+  symbolsData.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'symbol';
+    el.dataset.id = s.id;
+  
+    el.innerHTML = `
+      <img src="${s.img}" alt="${s.name}" onerror="this.style.display='none'">
+      <div style="font-size:13px; color:#333">${s.name}</div>
+    `;
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.symbol').forEach(n => n.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedSymbolId = s.id;
+      document.getElementById('message').textContent = 'អ្នកបានជ្រើស: ' + s.name;
+    });
+    symbolsEl.appendChild(el);
+  });
+
+
+  function updateBalanceDisplay(){
+    document.getElementById('balance').textContent = 'សមតុល្យ: ' + formatNumber(balance);
+  }
+  updateBalanceDisplay();
+
+
+  function randomDraw(){
+  
+    const idx = Math.floor(Math.random() * symbolsData.length);
+    return symbolsData[idx].id;
+  }
+
+  function showDraws(draws){
+    const ids = ['draw1','draw2','draw3'];
+    ids.forEach((id,i) => {
+      const el = document.getElementById(id);
+      const sym = symbolsData.find(s => s.id === draws[i]);
+      if (!sym) { el.textContent = '?' ; return; }
+     
+      el.innerHTML = `<div style="text-align:center">
+        <img src="${sym.img}" alt="${sym.name}" style="max-width:72px; max-height:72px; display:block; margin:0 auto;" onerror="this.style.display='none'">
+        <div style="font-size:12px; margin-top:4px;">${sym.name}</div>
+      </div>`;
+    });
+  }
+
+  function playRound(){
+    const betInput = document.getElementById('betAmount');
+    let bet = Number(betInput.value) || 0;
+    if (!selectedSymbolId){
+      document.getElementById('message').textContent = 'សូមជ្រើសរូបដំបូង';
+      return;
+    }
+    if (bet <= 0){
+      document.getElementById('message').textContent = 'ចំនួនភ្នាល់ត្រូវតែមានចាប់ពី 1 លុយឡើង';
+      return;
+    }
+    if (bet > balance){
+      document.getElementById('message').textContent = 'សមតុល្យមិនគ្រប់គ្រាន់';
+      return;
+    }
+
+
+    balance -= bet;
+
+ 
+    const draws = [randomDraw(), randomDraw(), randomDraw()];
+    showDraws(draws);
+
+ 
+    let matches = draws.reduce((acc, d) => acc + (d === selectedSymbolId ? 1 : 0), 0);
+
+    let payout = 0;
+    if (matches > 0){
+     
+      payout = bet * (1 + matches);
+      balance += payout;
+    }
+
+    updateBalanceDisplay();
+
+   
+    if (matches === 0) {
+      document.getElementById('message').textContent = `មិនឈ្នះ (matches: 0). ចំនួនហួស: -${formatNumber(bet)}.`;
+    } else {
+      document.getElementById('message').textContent =
+        `អ្នកឈ្នះ! matches: ${matches}. រង្វាន់បានទទួល: ${formatNumber(payout)}. (បញ្ចូលពីភ្នាល់ ${formatNumber(bet)})`;
+    }
+  }
+
+  document.getElementById('playBtn').addEventListener('click', playRound);
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    balance = 1003;
+    selectedSymbolId = null;
+    document.querySelectorAll('.symbol').forEach(n => n.classList.remove('selected'));
+    document.getElementById('draw1').textContent='?';
+    document.getElementById('draw2').textContent='?';
+    document.getElementById('draw3').textContent='?';
+    document.getElementById('message').textContent='';
+    updateBalanceDisplay();
+    document.getElementById('betAmount').value = 10;
+  });
+
+ 
+  document.getElementById('betAmount').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') playRound();
+  });
+</script>
+</body>
+</html>
